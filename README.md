@@ -151,4 +151,4 @@ MIME 映射：确保浏览器能正确识别文件类型，尤其是 .js 必须�
 console.log('Hello from ESM module!')
 ```
 
-然后运行 node server.js，打开浏览器访问 http://localhost:3000，你应该能看到标题文字，并且控制台输出 Hello from ESM module!，Network 标签中的 main.js 状态码为 200 且类型为 application/javascript。
+然后运行 `node server.js`，打开浏览器访问 `http://localhost:3000`，你应该能看到标题文字，并且控制台输出 `Hello from ESM module!`，Network 标签中的 `main.js` 状态码为 200 且类型为 `application/javascript`。

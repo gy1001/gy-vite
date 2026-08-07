@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 const { rewriteImports } = require('./utils')
 const { resolveModule } = require('./resolveModule')
+const { transform } = require('./transform')
 
 // 简易 MIME 映射表
 const MIME_TYPES = {
@@ -55,8 +56,20 @@ const server = http.createServer(async (req, res) => {
   const contentType = MIME_TYPES[ext] || 'application/octet-stream'
 
   // 处理 JS 文件：重写 import 路径
-  if (ext === '.js' || ext === '.mjs') {
+  if (
+    ext === '.js' ||
+    ext === '.mjs' ||
+    ext === '.ts' ||
+    ext === '.tsx' ||
+    ext === '.jsx'
+  ) {
     let content = fs.readFileSync(filePath, 'utf-8')
+
+    // 编译 ts jsx =》 js
+    if (ext === '.ts' || ext === '.tsx' || ext === '.jsx') {
+      content = await transform(content, filePath)
+    }
+
     content = await rewriteImports(content, pathname)
     res.writeHead(200, { 'Content-Type': 'application/javascript' })
     res.end(content)

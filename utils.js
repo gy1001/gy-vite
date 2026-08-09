@@ -1,5 +1,7 @@
 const { init, parse } = require('es-module-lexer')
 
+const ASSET_RE = /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff?)$/
+
 /**
  * 重写 import 路径
  * @param {string} source - 源码
@@ -10,7 +12,6 @@ async function rewriteImports(source, moduleUrl = '/') {
   const [imports] = parse(source)
 
   let newSource = source
-  // 从后往前替换，避免位置偏移
   for (let i = imports.length - 1; i >= 0; i--) {
     const { s, e, n } = imports[i]
     if (!n) continue
@@ -22,6 +23,11 @@ async function rewriteImports(source, moduleUrl = '/') {
       const baseUrl = new URL(moduleUrl, 'http://localhost')
       const targetUrl = new URL(n, baseUrl)
       replacement = targetUrl.pathname
+    }
+
+    // 图片等静态资源：添加 ?import 标记，让服务端知道这是模块导入
+    if (ASSET_RE.test(replacement)) {
+      replacement += '?import'
     }
 
     newSource = newSource.slice(0, s) + replacement + newSource.slice(e)

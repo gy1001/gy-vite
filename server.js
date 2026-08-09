@@ -55,7 +55,7 @@ const server = http.createServer(async (req, res) => {
   const ext = path.extname(filePath).toLowerCase()
   const contentType = MIME_TYPES[ext] || 'application/octet-stream'
 
-  // 增加 css 处理
+  // CSS 处理：包装成 JS 模块
   if (ext === '.css') {
     const cssContent = fs.readFileSync(filePath, 'utf-8')
     const jsContent = `
@@ -69,7 +69,31 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // 处理 JS 文件：重写 import 路径
+  // 图片等静态资源：区分模块导入和文件加载
+  const ASSET_RE = /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff?)$/
+  const isImport = parsedUrl.searchParams.get('import') !== null
+  if (ASSET_RE.test(pathname)) {
+    if (isImport) {
+      // 作为 ES 模块导入：返回 JS 代码，导出图片 URL
+      const assetUrl = pathname
+      const jsContent = `export default ${JSON.stringify(assetUrl)}`
+      res.writeHead(200, { 'content-type': 'application/javascript' })
+      res.end(jsContent)
+    } else {
+      // 作为文件加载（如 <img src>）：返回真实图片数据
+      if (!fs.existsSync(filePath)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' })
+        res.end('Not Found')
+        return
+      }
+      const data = fs.readFileSync(filePath)
+      res.writeHead(200, { 'Content-Type': contentType })
+      res.end(data)
+    }
+    return
+  }
+
+  // JS/TS 文件处理
   if (
     ext === '.js' ||
     ext === '.mjs' ||
@@ -90,7 +114,7 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // 读取文件并返回
+  // 其他静态文件直接返回
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain' })

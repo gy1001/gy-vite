@@ -4,6 +4,9 @@ const path = require('path')
 const { rewriteImports } = require('./utils')
 const { resolveModule } = require('./resolveModule')
 const { transform } = require('./transform')
+const { ModuleGraph } = require('./moduleGraph')
+const { getImportUrls } = require('./utils')
+const moduleGraph = new ModuleGraph()
 
 // 简易 MIME 映射表
 const MIME_TYPES = {
@@ -28,6 +31,22 @@ const server = http.createServer(async (req, res) => {
     pathname = '/index.html'
   }
 
+  // 增加 __graph 接口查看模块图
+  if (pathname === '/__graph') {
+    const graphData = Array.from(moduleGraph.nodes.values()).map((node) => ({
+      url: node.url,
+      importers: Array.from(node.importers.values().map((n) => n.url)),
+      importedModules: Array.from(node.importedModules.values()).map(
+        (n) => n.url,
+      ),
+      isSelfAccepting: node.isSelfAccepting,
+    }))
+
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(graphData, null, 2))
+    return
+  }
+
   // 处理 /@modules/ 请求
   if (pathname.startsWith('/@modules/')) {
     const moduleName = pathname.replace('/@modules/', '')
@@ -43,6 +62,16 @@ const server = http.createServer(async (req, res) => {
     let content = fs.readFileSync(fullPath, 'utf-8')
     // 对 node_modules 里的文件也要重写其内部 import
     content = await rewriteImports(content, moduleUrl)
+
+    const importUrls = await getImportUrls(content)
+    importUrls.forEach((importUrl) => {
+      // 相对路径解析成绝对 URL
+      const resolvedImport = importUrl.startsWith('.')
+        ? path.posix.join(path.posix.dirname(pathname), importUrl)
+        : importUrl
+      moduleGraph.addEdge(pathname, resolvedImport)
+    })
+
     res.writeHead(200, { 'Content-Type': 'application/javascript' })
     res.end(content)
     return
@@ -109,6 +138,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     content = await rewriteImports(content, pathname)
+    const importUrls = await getImportUrls(content)
+    importUrls.forEach((importUrl) => {
+      // 相对路径解析成绝对 URL
+      const resolvedImport = importUrl.startsWith('.')
+        ? path.posix.join(path.posix.dirname(pathname), importUrl)
+        : importUrl
+      moduleGraph.addEdge(pathname, resolvedImport)
+    })
+
     res.writeHead(200, { 'Content-Type': 'application/javascript' })
     res.end(content)
     return

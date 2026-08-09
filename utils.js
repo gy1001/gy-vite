@@ -36,4 +36,10 @@ async function rewriteImports(source, moduleUrl = '/') {
   return newSource
 }
 
-module.exports = { rewriteImports }
+async function getImportUrls(source) {
+  await init
+  const [imports] = parse(source)
+  return imports.map((imp) => imp.n).filter(Boolean)
+}
+
+module.exports = { rewriteImports, getImportUrls }

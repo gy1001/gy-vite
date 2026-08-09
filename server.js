@@ -55,6 +55,20 @@ const server = http.createServer(async (req, res) => {
   const ext = path.extname(filePath).toLowerCase()
   const contentType = MIME_TYPES[ext] || 'application/octet-stream'
 
+  // 增加 css 处理
+  if (ext === '.css') {
+    const cssContent = fs.readFileSync(filePath, 'utf-8')
+    const jsContent = `
+      const style = document.createElement("style")
+      style.textContent = ${JSON.stringify(cssContent)}
+      document.head.appendChild(style)
+      export default {}
+    `.trim()
+    res.writeHead(200, { 'content-type': 'application/javascript' })
+    res.end(jsContent)
+    return
+  }
+
   // 处理 JS 文件：重写 import 路径
   if (
     ext === '.js' ||

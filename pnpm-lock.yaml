@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
       es-module-lexer:
         specifier: ^2.3.1
         version: 2.3.1
@@ -17,6 +20,9 @@ importers:
       lodash-es:
         specifier: ^4.18.1
         version: 4.18.1
+      ws:
+        specifier: ^8.21.3
+        version: 8.21.3
 
 packages:
 
@@ -176,6 +182,10 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  chokidar@5.0.0:
+    resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
+    engines: {node: '>= 20.19.0'}
+
   es-module-lexer@2.3.1:
     resolution: {integrity: sha512-shc1dbU90Yl/xq1QrC7QRtfcwURZuVRfPhZbDoldJ1cn1gzDvBaBWlv0eFolj5+0znnPJz5TXLxsN77X/12KTA==}
 
@@ -186,6 +196,22 @@ packages:
 
   lodash-es@4.18.1:
     resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
+
+  readdirp@5.1.1:
+    resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
+    engines: {node: '>= 20.19.0'}
+
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
 snapshots:
 
@@ -267,6 +293,10 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
+  chokidar@5.0.0:
+    dependencies:
+      readdirp: 5.1.1
+
   es-module-lexer@2.3.1: {}
 
   esbuild@0.28.1:
@@ -299,3 +329,7 @@ snapshots:
       '@esbuild/win32-x64': 0.28.1
 
   lodash-es@4.18.1: {}
+
+  readdirp@5.1.1: {}
+
+  ws@8.21.3: {}

@@ -7,6 +7,7 @@ const { transform } = require('./transform')
 const { ModuleGraph } = require('./moduleGraph')
 const { getImportUrls } = require('./utils')
 const moduleGraph = new ModuleGraph()
+const { createHMRServer } = require('./hmr')
 
 // 简易 MIME 映射表
 const MIME_TYPES = {
@@ -20,6 +21,19 @@ const MIME_TYPES = {
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
 }
+
+// HTML 注入客户端脚本
+const HMR_CLIENT_CODE = `
+  <script>
+    const ws = new WebSocket("ws://" + location.host)
+    ws.addEventListener("message", ({data}) => {
+      const msg = JSON.parse(data)
+      if(msg.type === "full-reload"){
+        location.reload()
+      }
+    })
+  </script>
+`
 
 const server = http.createServer(async (req, res) => {
   // 解析路径（去掉查询参数和 hash）
@@ -83,6 +97,19 @@ const server = http.createServer(async (req, res) => {
   // 获取扩展名
   const ext = path.extname(filePath).toLowerCase()
   const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+
+  // 在返回 HTML 之前注入
+  if (ext === '.html') {
+    let content = fs.readFileSync(filePath, 'utf-8')
+    if (content.includes('</body>')) {
+      content = content.replace('</body>', HMR_CLIENT_CODE + '</body>')
+    } else {
+      content = content + HMR_CLIENT_CODE
+    }
+    res.writeHead(200, { 'content-type': 'text/html' })
+    res.end(content)
+    return
+  }
 
   // CSS 处理：包装成 JS 模块
   if (ext === '.css') {
@@ -164,6 +191,7 @@ const server = http.createServer(async (req, res) => {
   })
 })
 
+createHMRServer(server, moduleGraph)
 const PORT = 3000
 server.listen(PORT, () => {
   console.log(`✅ Mini-Vite dev server running at http://localhost:${PORT}`)

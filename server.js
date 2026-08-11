@@ -23,17 +23,6 @@ const MIME_TYPES = {
 }
 
 // HTML 注入客户端脚本
-const HMR_CLIENT_CODE = `
-  <script>
-    const ws = new WebSocket("ws://" + location.host)
-    ws.addEventListener("message", ({data}) => {
-      const msg = JSON.parse(data)
-      if(msg.type === "full-reload"){
-        location.reload()
-      }
-    })
-  </script>
-`
 
 const server = http.createServer(async (req, res) => {
   // 解析路径（去掉查询参数和 hash）
@@ -43,6 +32,59 @@ const server = http.createServer(async (req, res) => {
   // 如果是根路径，指向 index.html
   if (pathname === '/') {
     pathname = '/index.html'
+  }
+
+  if (pathname === '/@vite/hmr-client') {
+    const clientCode = `
+      const hotModules = new Map()
+      const dataMap = new Map()
+
+      export function createHotContext(moduleUrl) {
+        const hot = {
+          data: dataMap.get(moduleUrl) || {},
+          accept(cb) {
+            hotModules.set(moduleUrl, { deps: new Set([moduleUrl]), cb })
+          },
+          acceptDeps(deps, cb) {
+            const depSet = new Set(deps.map((d) => new URL(d, moduleUrl).pathname))
+            hotModules.set(moduleUrl, { deps: depSet, cb })
+          },
+          dispose(cb) {},
+        }
+        return hot
+      }
+
+      const ws = new WebSocket('ws://' + location.host)
+      ws.addEventListener('message', async ({ data }) => {
+        const msg = JSON.parse(data)
+        if (msg.type === 'update') {
+          const { boundary } = msg
+          if (boundary && hotModules.has(boundary)) {
+            const { deps, cb } = hotModules.get(boundary)
+            const newModules = []
+            for (const dep of deps) {
+              try {
+                const mod = await import(dep + '?t=' + Date.now())
+                newModules.push(mod.default ?? mod)
+              } catch (e) {
+                console.error('HMR 更新失败:', dep, e)
+                return
+              }
+            }
+            if (cb) cb(...newModules)
+            console.log('[HMR] 精确更新成功', boundary)
+          } else {
+            console.log('[HMR] 无精确边界，全量刷新')
+            location.reload()
+          }
+        } else if (msg.type === 'full-reload') {
+          location.reload()
+        }
+      })
+    `
+    res.writeHead(200, { 'content-type': 'application/javascript' })
+    res.end(clientCode)
+    return
   }
 
   // 增加 __graph 接口查看模块图
@@ -101,12 +143,13 @@ const server = http.createServer(async (req, res) => {
   // 在返回 HTML 之前注入
   if (ext === '.html') {
     let content = fs.readFileSync(filePath, 'utf-8')
+    const hmrScript = '<script type="module" src="/@vite/hmr-client"></script>'
     if (content.includes('</body>')) {
-      content = content.replace('</body>', HMR_CLIENT_CODE + '</body>')
+      content = content.replace('</body>', hmrScript + '</body>')
     } else {
-      content = content + HMR_CLIENT_CODE
+      content = content + hmrScript
     }
-    res.writeHead(200, { 'content-type': 'text/html' })
+    res.writeHead(200, { 'Content-Type': 'text/html' })
     res.end(content)
     return
   }
@@ -115,11 +158,23 @@ const server = http.createServer(async (req, res) => {
   if (ext === '.css') {
     const cssContent = fs.readFileSync(filePath, 'utf-8')
     const jsContent = `
+      import { createHotContext } from '/@vite/hmr-client'
+      const __hmr = createHotContext(${JSON.stringify(pathname)})
+
       const style = document.createElement("style")
       style.textContent = ${JSON.stringify(cssContent)}
       document.head.appendChild(style)
-      export default {}
+      export default { css: ${JSON.stringify(cssContent)} }
+
+      __hmr.accept((newMod) => {
+        style.textContent = newMod.css
+      })
     `.trim()
+
+    // 注册到模块图，标记为 self-accepting
+    const node = moduleGraph.ensureNode(pathname)
+    node.isSelfAccepting = true
+
     res.writeHead(200, { 'content-type': 'application/javascript' })
     res.end(jsContent)
     return
@@ -164,7 +219,19 @@ const server = http.createServer(async (req, res) => {
       content = await transform(content, filePath)
     }
 
+    // 注入 HMR 上下文
+    const injected = `
+      import { createHotContext } from '/@vite/hmr-client'
+      import.meta.hot = createHotContext(${JSON.stringify(pathname)})
+      ${content}
+    `
+    content = injected
     content = await rewriteImports(content, pathname)
+
+    // 标记 isSelfAccepting
+    const node = moduleGraph.ensureNode(pathname)
+    node.isSelfAccepting = /import\.meta\.hot\.accept\s*\(/.test(content)
+
     const importUrls = await getImportUrls(content)
     importUrls.forEach((importUrl) => {
       // 相对路径解析成绝对 URL
